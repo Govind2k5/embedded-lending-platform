@@ -107,11 +107,3 @@ A fixed-window counter in Redis limits every `/api/v1/**` call to 60 requests/mi
 
 ![Checking eligibility](screenshots/03-check-eligibility.png)
 *Checking eligibility - application moves to OFFERS_AVAILABLE once a lender matches*
-
-## What I Learned
-
-- How to design a rule-based eligibility engine using a simple interface (`EligibilityRule`) instead of reaching for a full rules engine library.
-- Why idempotency keys matter for payment/loan-adjacent APIs, and that the tricky part isn't the happy path - it's deciding what to do when the same key shows up with a different request body.
-- Cache-aside with Redis is simple to reason about once you're clear that Postgres is always right and Redis is disposable - if I flushed Redis right now, the app would keep working correctly, just slightly slower until the cache warms back up.
-- JPA's `@Version` optimistic locking is a much simpler way to handle "two repayments hit the same loan at once" than anything involving explicit locks, for a system at this scale.
-- Keeping modules talking to each other over IDs and service calls instead of JPA `@ManyToOne` relationships made it much easier to reason about which package owns which write.
