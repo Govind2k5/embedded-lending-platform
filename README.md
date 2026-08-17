@@ -19,7 +19,7 @@ This is an educational/simulation project. It does not integrate with any real b
 
 ## Tech Stack
 
-Java 17, Spring Boot 3, Spring Data JPA, PostgreSQL, Redis, Flyway, Docker, JUnit 5, Mockito, Testcontainers
+Java 17, Spring Boot 3, Spring Data JPA, Spring Validation, PostgreSQL, Redis, Flyway, springdoc-openapi (Swagger UI), Docker, JUnit 5, Mockito, Testcontainers
 
 ## Architecture
 
@@ -52,7 +52,7 @@ Each package follows the usual Controller -> Service -> Repository layering. Pac
 Requires Docker and Docker Compose.
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/Govind2k5/embedded-lending-platform.git
 cd embedded-lending-platform
 docker compose up --build
 ```
@@ -99,24 +99,14 @@ A fixed-window counter in Redis limits every `/api/v1/**` call to 60 requests/mi
 
 ## Screenshots
 
-_Screenshots go in `screenshots/` - see the setup notes for what to capture._
-
-<!--
 ![API documentation using Swagger](screenshots/01-swagger-ui.png)
 *API documentation using Swagger*
 
 ![Creating a loan application](screenshots/02-create-application.png)
-*Creating a loan application*
+*Creating a loan application - request and response*
 
-![Loan offers generated from eligible lenders](screenshots/03-eligibility-offers.png)
-*Loan offers generated from eligible lenders*
-
-![Loan details and repayment schedule](screenshots/04-loan-repayments.png)
-*Loan details and repayment schedule*
-
-![Running the application with Docker Compose](screenshots/05-docker-compose.png)
-*Running the application with Docker Compose*
--->
+![Checking eligibility](screenshots/03-check-eligibility.png)
+*Checking eligibility - application moves to OFFERS_AVAILABLE once a lender matches*
 
 ## What I Learned
 
