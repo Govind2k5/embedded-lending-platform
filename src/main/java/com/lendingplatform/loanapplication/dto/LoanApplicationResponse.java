@@ -6,6 +6,12 @@ import com.lendingplatform.loanapplication.LoanApplicationStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Outbound shape returned by every loan-application endpoint. This is also
+ * exactly what gets cached (as the `responseBody` of an IdempotencyRecord)
+ * when a client uses an Idempotency-Key on POST /loan-applications - see
+ * IdempotencyService.
+ */
 public record LoanApplicationResponse(
         Long id,
         Long borrowerId,

@@ -6,6 +6,7 @@ import com.lendingplatform.offer.OfferStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/** Outbound shape for GET /api/v1/loan-applications/{id}/offers - one entry per lender that matched eligibility. */
 public record LoanOfferResponse(
         Long id,
         Long applicationId,

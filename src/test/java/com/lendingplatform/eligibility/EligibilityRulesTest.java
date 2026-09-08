@@ -16,8 +16,17 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Unit tests for the 4 individual EligibilityRule implementations, tested
+ * in isolation from EligibilityService and from Spring entirely - each
+ * rule is a one-line pure function, so each gets a one-line-assertion test.
+ * Fixtures are built by hand rather than loaded from a database, since
+ * these rules don't touch persistence at all.
+ */
 class EligibilityRulesTest {
 
+    // A "clearly eligible" baseline borrower - each test below only tweaks
+    // the one field relevant to the rule under test.
     private final Borrower borrower = borrowerWith(BigDecimal.valueOf(50000), 720);
 
     private static Borrower borrowerWith(BigDecimal monthlyIncome, int creditScore) {
@@ -33,6 +42,7 @@ class EligibilityRulesTest {
                 .build();
     }
 
+    // A representative lender (matches BankOne's seeded rules).
     private final LenderRules lenderRules = new LenderRules(
             1L, "BankOne", LenderType.BANK,
             BigDecimal.valueOf(40000), 700, BigDecimal.valueOf(500000), 6, 60, BigDecimal.valueOf(11.5), true);
@@ -69,12 +79,14 @@ class EligibilityRulesTest {
 
     @Test
     void loanAmountRuleFailsWhenRequestedAmountExceedsMax() {
+        // 600000 > lender's maximumLoanAmount of 500000
         assertThat(new LoanAmountEligibilityRule().isEligible(borrower, applicationFor(BigDecimal.valueOf(600000), 12), lenderRules))
                 .isFalse();
     }
 
     @Test
     void tenureRuleFailsWhenOutsideLenderRange() {
+        // 90 months > lender's max of 60; 3 months < lender's min of 6 - both ends of the range are checked.
         assertThat(new TenureEligibilityRule().isEligible(borrower, applicationFor(BigDecimal.valueOf(100000), 90), lenderRules))
                 .isFalse();
         assertThat(new TenureEligibilityRule().isEligible(borrower, applicationFor(BigDecimal.valueOf(100000), 3), lenderRules))

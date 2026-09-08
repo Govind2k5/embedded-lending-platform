@@ -6,6 +6,7 @@ import com.lendingplatform.loan.LoanStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/** Outbound shape for GET /api/v1/loans/{id} and the response of POST .../approve. Note this intentionally omits Loan.version - that's an internal JPA concurrency-control detail, not part of the public API contract. */
 public record LoanResponse(
         Long id,
         Long applicationId,

@@ -16,6 +16,13 @@ import java.time.Instant;
  * General-purpose 60 requests/minute per IP limit applied to every API call.
  * Endpoint-specific limits (e.g. application creation per borrower) are
  * enforced separately in the relevant controller.
+ *
+ * This is a Spring MVC HandlerInterceptor, not a servlet Filter or a
+ * @RestControllerAdvice - it runs in preHandle(), BEFORE Spring even picks
+ * which @RestController method to invoke. Registered against /api/v1/** in
+ * WebConfig. Because it short-circuits by returning false, a rate-limited
+ * request never reaches a controller and never goes through
+ * GlobalExceptionHandler - the 429 response is written directly here.
  */
 @RequiredArgsConstructor
 public class RateLimitInterceptor implements HandlerInterceptor {
@@ -31,14 +38,18 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         String key = rateLimiterService.windowedKey("ratelimit:ip:" + clientIp, 60);
 
         if (!rateLimiterService.isAllowed(key, LIMIT_PER_MINUTE, Duration.ofMinutes(2))) {
+            // Build the exact same ErrorResponse shape GlobalExceptionHandler
+            // uses, even though this bypasses it entirely, so a client
+            // never has to special-case "429 from the interceptor" vs.
+            // "429 from a controller exception".
             ErrorResponse body = new ErrorResponse(
                     Instant.now(), HttpStatus.TOO_MANY_REQUESTS.value(), "RATE_LIMIT_EXCEEDED",
                     "Too many requests, limit is " + LIMIT_PER_MINUTE + " per minute", request.getRequestURI());
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(objectMapper.writeValueAsString(body));
-            return false;
+            return false; // stop the request here - the target controller method is never invoked
         }
-        return true;
+        return true; // within limit, let the request continue to the controller
     }
 }

@@ -19,6 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * The orchestrator of the whole borrower journey - this is the one service
+ * that calls into every other domain package (borrower, merchant,
+ * eligibility, offer, loan) to drive an application through its state
+ * machine (see LoanApplicationStatus). Nothing in borrower/lender/merchant
+ * ever calls back into this class - dependencies point one way.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -31,7 +38,11 @@ public class LoanApplicationService {
     private final LoanOfferService loanOfferService;
     private final LoanService loanService;
 
+    /** Step 1 of the workflow: create a new application in CREATED status, after confirming the borrower and merchant ids are real. */
     public LoanApplication create(LoanApplicationRequest request) {
+        // Throws ResourceNotFoundException (-> 404) immediately if either id
+        // is bogus, rather than letting a foreign-key violation surface as
+        // an obscure database error later.
         borrowerService.getById(request.borrowerId());
         merchantService.getById(request.merchantId());
 
@@ -48,6 +59,7 @@ public class LoanApplicationService {
         return saved;
     }
 
+    /** Used by every other method here, and by the controller's GET endpoint - throws 404 if the id doesn't exist. */
     public LoanApplication getById(Long id) {
         return loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Loan application not found: " + id));
@@ -59,9 +71,13 @@ public class LoanApplicationService {
      * Otherwise the application is REJECTED - there is nothing further a borrower
      * can do on this application.
      */
-    @Transactional
+    @Transactional // both the offer-generation inserts and the status update commit together, or neither does
     public LoanApplication checkEligibility(Long applicationId) {
         LoanApplication application = getById(applicationId);
+        // Guard clause: this can only run once, straight after creation.
+        // Trying to re-check eligibility on an already-progressed
+        // application is a client/workflow error, not something to silently
+        // allow or ignore.
         if (application.getStatus() != LoanApplicationStatus.CREATED) {
             throw new InvalidStateException(
                     "Eligibility can only be checked once, application is in status " + application.getStatus());
@@ -71,6 +87,8 @@ public class LoanApplicationService {
         List<LenderRules> eligibleLenders = eligibilityService.findEligibleLenders(borrower, application);
 
         if (eligibleLenders.isEmpty()) {
+            // Zero matches is a legitimate business outcome, not an
+            // exception - the application simply has nowhere to go next.
             application.setStatus(LoanApplicationStatus.REJECTED);
             log.info("Application {} rejected, no lender matched eligibility rules", applicationId);
         } else {
@@ -81,11 +99,13 @@ public class LoanApplicationService {
         return loanApplicationRepository.save(application);
     }
 
+    /** Read-only: lists whatever offers currently exist for this application (empty if it was REJECTED). */
     public List<LoanOffer> getOffers(Long applicationId) {
-        getById(applicationId);
+        getById(applicationId); // 404s if the application itself doesn't exist, even if it happens to have no offers
         return loanOfferService.getOffersForApplication(applicationId);
     }
 
+    /** Step 4: the borrower picks one offer. Delegates the actual SELECTED/EXPIRED bookkeeping to LoanOfferService. */
     @Transactional
     public LoanApplication selectOffer(Long applicationId, Long offerId) {
         LoanApplication application = getById(applicationId);
@@ -94,6 +114,9 @@ public class LoanApplicationService {
                     "Cannot select an offer, application is in status " + application.getStatus());
         }
 
+        // LoanOfferService.selectOffer also validates the offer belongs to
+        // this application and is still AVAILABLE - see that method for the
+        // offer-level guard clauses.
         loanOfferService.selectOffer(applicationId, offerId);
 
         application.setStatus(LoanApplicationStatus.OFFER_SELECTED);
@@ -115,6 +138,9 @@ public class LoanApplicationService {
         }
 
         LoanOffer selectedOffer = loanOfferService.getSelectedOffer(applicationId);
+        // This single call also generates the full repayment schedule
+        // internally (LoanService -> RepaymentService) - see LoanService's
+        // Javadoc for exactly what happens inside this one transaction.
         Loan loan = loanService.createLoanFromOffer(application, selectedOffer);
 
         application.setStatus(LoanApplicationStatus.APPROVED);

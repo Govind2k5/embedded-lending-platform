@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/** Business logic for merchants. LoanApplicationService.create() calls getById() to confirm a merchantId is real before creating an application. */
 @Service
 @RequiredArgsConstructor
 public class MerchantService {

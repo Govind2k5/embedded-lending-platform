@@ -5,6 +5,14 @@ import io.swagger.v3.oas.models.info.Info;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Customizes the title/description shown at the top of the auto-generated
+ * Swagger UI (http://localhost:8080/swagger-ui/index.html). Everything else
+ * about the OpenAPI spec - every endpoint, request/response schema - is
+ * generated automatically by springdoc-openapi from the @RestController
+ * classes and their DTOs, so it can never drift out of sync with the real
+ * API the way a hand-written Postman collection or Markdown doc could.
+ */
 @Configuration
 public class OpenApiConfig {
 

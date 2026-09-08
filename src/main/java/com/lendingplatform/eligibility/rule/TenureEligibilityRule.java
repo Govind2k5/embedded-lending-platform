@@ -6,6 +6,7 @@ import com.lendingplatform.lender.LenderRules;
 import com.lendingplatform.loanapplication.LoanApplication;
 import org.springframework.stereotype.Component;
 
+/** Rejects a lender if the requested tenure (in months) falls outside that lender's supported min/max tenure range. */
 @Component
 public class TenureEligibilityRule implements EligibilityRule {
 

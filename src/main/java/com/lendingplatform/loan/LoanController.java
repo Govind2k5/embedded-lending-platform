@@ -11,6 +11,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * REST layer for viewing an approved loan and its repayment schedule, and
+ * for simulating a repayment. Note this controller also exposes the
+ * repayment endpoints (nested under /loans/{id}/repayments) even though the
+ * repayment logic itself lives in the `repayment` package - keeping the
+ * URL hierarchy (a repayment belongs to a loan) separate from the package
+ * hierarchy (repayment is its own domain module) is a deliberate choice.
+ */
 @RestController
 @RequestMapping("/api/v1/loans")
 @RequiredArgsConstructor
@@ -25,11 +33,18 @@ public class LoanController {
         return LoanResponse.from(loanService.getById(id));
     }
 
+    /** Read-only view of every installment generated at approval time (see RepaymentService.generateSchedule). */
     @GetMapping("/{id}/repayments")
     public List<RepaymentResponse> getRepaymentSchedule(@PathVariable Long id) {
         return repaymentService.getScheduleForLoan(id).stream().map(RepaymentResponse::from).toList();
     }
 
+    /**
+     * Simulates paying one installment. The request body is optional
+     * (required = false) - omitting `amount` pays whatever is still due on
+     * that installment in full; a smaller amount records a PARTIAL payment.
+     * See RepaymentService.makeRepayment() for the actual balance/status logic.
+     */
     @PostMapping("/{id}/repayments/{repaymentId}")
     public RepaymentResponse makeRepayment(@PathVariable Long id, @PathVariable Long repaymentId,
                                             @Valid @RequestBody(required = false) MakeRepaymentRequest request) {

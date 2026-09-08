@@ -5,6 +5,7 @@ import com.lendingplatform.lender.LenderType;
 
 import java.math.BigDecimal;
 
+/** Outbound shape for the Lender endpoints - maps straight from the JPA entity, never from the cached LenderRules. */
 public record LenderResponse(
         Long id,
         String name,

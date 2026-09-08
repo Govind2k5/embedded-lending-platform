@@ -33,6 +33,7 @@ public class LoanOfferService {
         return saved;
     }
 
+    /** One offer = the application's requested terms, priced at this specific lender's flat rate. */
     private LoanOffer buildOffer(LoanApplication application, LenderRules lender) {
         var emi = emiCalculatorService.calculateEmi(
                 application.getRequestedAmount(), lender.baseInterestRate(), application.getRequestedTenureMonths());
@@ -48,6 +49,7 @@ public class LoanOfferService {
                 .build();
     }
 
+    /** Used by the "view offers" endpoint - returns whatever offers exist for this application, regardless of status. */
     public List<LoanOffer> getOffersForApplication(Long applicationId) {
         return loanOfferRepository.findByApplicationId(applicationId);
     }
@@ -63,6 +65,10 @@ public class LoanOfferService {
      */
     public LoanOffer selectOffer(Long applicationId, Long offerId) {
         LoanOffer offer = getById(offerId);
+        // Two separate, explicit guard checks (rather than one combined
+        // condition) so the error message can say exactly what's wrong:
+        // wrong application vs. already selected/expired are different bugs
+        // for a client to fix.
         if (!offer.getApplicationId().equals(applicationId)) {
             throw new InvalidStateException("Offer " + offerId + " does not belong to application " + applicationId);
         }
@@ -73,6 +79,9 @@ public class LoanOfferService {
         offer.setStatus(OfferStatus.SELECTED);
         loanOfferRepository.save(offer);
 
+        // Expire every sibling offer still AVAILABLE on this application -
+        // this is what makes "one selected offer per application" an
+        // invariant rather than just a convention.
         List<LoanOffer> otherOffers = loanOfferRepository.findByApplicationId(applicationId);
         for (LoanOffer other : otherOffers) {
             if (!other.getId().equals(offerId) && other.getStatus() == OfferStatus.AVAILABLE) {
@@ -84,6 +93,7 @@ public class LoanOfferService {
         return offer;
     }
 
+    /** Used by LoanApplicationService.approve() to find which offer to build the Loan from. */
     public LoanOffer getSelectedOffer(Long applicationId) {
         return loanOfferRepository.findByApplicationId(applicationId).stream()
                 .filter(offer -> offer.getStatus() == OfferStatus.SELECTED)

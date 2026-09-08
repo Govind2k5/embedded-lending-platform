@@ -10,6 +10,13 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/**
+ * JPA entity mapped to "loans" - created exactly once, by
+ * LoanService.createLoanFromOffer(), from a SELECTED LoanOffer. Carries
+ * copies of applicationId/offerId/borrowerId/lenderId (all plain FK
+ * columns, not JPA relationships) so a Loan can always be traced back to
+ * the application and offer it came from without a join.
+ */
 @Entity
 @Table(name = "loans")
 @Getter
@@ -44,9 +51,16 @@ public class Loan {
     @Column(name = "tenure_months", nullable = false)
     private Integer tenureMonths;
 
+    // Copied from the offer at creation time, NOT recalculated here - see
+    // LoanService.createLoanFromOffer(). Safe because the approved
+    // amount/tenure/rate always match the offer's by the time a loan is
+    // created, but worth knowing it's a copy, not a fresh computation.
     @Column(name = "monthly_emi", nullable = false)
     private BigDecimal monthlyEmi;
 
+    // The one mutable financial figure on this entity - decremented by
+    // RepaymentService.makeRepayment() every time an installment is paid,
+    // clamped to zero, and used to flip status to COMPLETED.
     @Column(name = "outstanding_amount", nullable = false)
     private BigDecimal outstandingAmount;
 
@@ -60,6 +74,18 @@ public class Loan {
     @Column(name = "maturity_date", nullable = false)
     private LocalDate maturityDate;
 
+    /**
+     * JPA optimistic-locking column (mapped to the "version" BIGINT column
+     * in the schema). Every UPDATE Hibernate issues for this entity
+     * automatically includes "WHERE version = <the value it read>" and
+     * bumps it by 1 on success. If two requests (e.g. two concurrent
+     * repayments on the same loan) both read version=3, whichever commits
+     * first wins and moves it to 4; the second one's UPDATE matches zero
+     * rows, and Hibernate throws ObjectOptimisticLockingFailureException -
+     * mapped by GlobalExceptionHandler to 409 CONCURRENT_UPDATE. This is
+     * what makes concurrent balance updates on the same loan safe without
+     * an explicit database or distributed lock.
+     */
     @Version
     private Long version;
 }

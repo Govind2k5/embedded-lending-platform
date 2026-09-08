@@ -6,6 +6,13 @@ import com.lendingplatform.lender.LenderRules;
 import com.lendingplatform.loanapplication.LoanApplication;
 import org.springframework.stereotype.Component;
 
+/**
+ * Rejects a lender if the requested loan amount exceeds that lender's
+ * maximum. This is what guarantees, further downstream, that
+ * LoanOfferService can safely copy the requested amount straight onto the
+ * offer as the "approved" amount - by the time an offer is generated, this
+ * rule has already confirmed the amount fits.
+ */
 @Component
 public class LoanAmountEligibilityRule implements EligibilityRule {
 

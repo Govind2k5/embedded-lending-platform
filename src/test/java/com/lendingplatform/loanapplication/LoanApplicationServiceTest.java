@@ -19,6 +19,14 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+/**
+ * Mockito-based unit tests for LoanApplicationService's state-machine guard
+ * clauses - every collaborator (BorrowerService, MerchantService,
+ * EligibilityService, LoanOfferService, LoanService, and the repository) is
+ * mocked, so these tests run with no database and no Spring context at all,
+ * purely checking that calling a workflow method from the WRONG status
+ * throws InvalidStateException rather than proceeding.
+ */
 @ExtendWith(MockitoExtension.class)
 class LoanApplicationServiceTest {
 
@@ -35,6 +43,8 @@ class LoanApplicationServiceTest {
     @Mock
     private LoanService loanService;
 
+    // Mockito wires the six @Mock fields above into this real
+    // LoanApplicationService instance's constructor automatically.
     @InjectMocks
     private LoanApplicationService loanApplicationService;
 
@@ -54,16 +64,18 @@ class LoanApplicationServiceTest {
 
     @Test
     void checkEligibilityRejectsApplicationNotInCreatedState() {
+        // Simulate an application that has already had its eligibility checked once.
         application.setStatus(LoanApplicationStatus.OFFERS_AVAILABLE);
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
 
         assertThatThrownBy(() -> loanApplicationService.checkEligibility(1L))
                 .isInstanceOf(InvalidStateException.class)
-                .hasMessageContaining("OFFERS_AVAILABLE");
+                .hasMessageContaining("OFFERS_AVAILABLE"); // error message should name the actual (wrong) status, for a useful client error
     }
 
     @Test
     void selectOfferRejectsApplicationNotInOffersAvailableState() {
+        // Trying to select an offer before eligibility has even been checked.
         application.setStatus(LoanApplicationStatus.CREATED);
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
 
@@ -73,6 +85,7 @@ class LoanApplicationServiceTest {
 
     @Test
     void approveRejectsApplicationNotInOfferSelectedState() {
+        // Trying to approve before any offer has been selected.
         application.setStatus(LoanApplicationStatus.OFFERS_AVAILABLE);
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
 

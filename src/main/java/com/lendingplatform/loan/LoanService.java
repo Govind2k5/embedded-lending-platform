@@ -34,14 +34,19 @@ public class LoanService {
                 .principalAmount(offer.getApprovedAmount())
                 .interestRate(offer.getInterestRate())
                 .tenureMonths(offer.getTenureMonths())
-                .monthlyEmi(offer.getMonthlyEmi())
-                .outstandingAmount(offer.getApprovedAmount())
+                .monthlyEmi(offer.getMonthlyEmi()) // copied from the offer, not recalculated - see Loan.monthlyEmi's comment
+                .outstandingAmount(offer.getApprovedAmount()) // full principal is owed on day one
                 .status(LoanStatus.ACTIVE)
                 .startDate(startDate)
                 .maturityDate(startDate.plusMonths(offer.getTenureMonths()))
                 .build();
 
         Loan savedLoan = loanRepository.save(loan);
+        // Must run AFTER the loan has an id (needs savedLoan.getId() as the
+        // FK for every Repayment row) - this call and the save() above are
+        // both inside the single @Transactional boundary owned by the
+        // caller (LoanApplicationService.approve), so if schedule
+        // generation throws, the loan insert above rolls back too.
         repaymentService.generateSchedule(savedLoan);
 
         log.info("Loan {} created for application {}", savedLoan.getId(), application.getId());

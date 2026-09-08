@@ -1,3 +1,10 @@
+# Main Spring Boot configuration. Every DB_*/REDIS_* value below has a
+# localhost-friendly default (after the colon, e.g. ${DB_HOST:localhost})
+# so the app runs unmodified both via `mvn spring-boot:run` on a laptop
+# (against locally-running Postgres/Redis) and inside Docker Compose, where
+# docker-compose.yml overrides these via real environment variables
+# (DB_HOST=postgres, REDIS_HOST=redis, etc.) pointing at the other containers.
+
 server:
   port: 8080
 
@@ -6,27 +13,35 @@ spring:
     name: embedded-lending-platform
 
   datasource:
+    # jdbc:postgresql://<host>:<port>/<database> - values come from env vars in Docker, or default to a local Postgres instance.
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:lending_platform}
     username: ${DB_USER:lending_user}
     password: ${DB_PASSWORD:lending_pass}
 
   jpa:
     hibernate:
+      # "validate", not "update" or "create": Hibernate only ever checks
+      # that our @Entity classes match the schema Flyway already built - it
+      # never creates or alters tables itself. This is what makes Flyway,
+      # not Hibernate, the single source of truth for the schema.
       ddl-auto: validate
-    open-in-view: false
+    open-in-view: false # disables the "Open Session in View" anti-pattern - lazy-loading outside a transaction should fail loudly, not silently work via a lingering DB connection
     properties:
       hibernate:
-        format_sql: true
+        format_sql: true # pretty-prints SQL in the logs, purely for local readability
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration # picks up V1__init_schema.sql, V2__seed_data.sql, run in order, once each, tracked in the flyway_schema_history table
 
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+# springdoc-openapi: serves the interactive API docs.
+# Swagger UI:      http://localhost:8080/swagger-ui.html
+# Raw OpenAPI spec: http://localhost:8080/v3/api-docs
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -35,4 +50,4 @@ springdoc:
 
 logging:
   level:
-    com.lendingplatform: INFO
+    com.lendingplatform: INFO # our own code logs at INFO (application created, offers generated, loan approved, repayment processed...); third-party libraries stay at their default level

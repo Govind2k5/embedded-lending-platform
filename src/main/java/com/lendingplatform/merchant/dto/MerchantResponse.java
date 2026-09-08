@@ -4,6 +4,7 @@ import com.lendingplatform.merchant.Merchant;
 
 import java.time.Instant;
 
+/** Outbound shape for the Merchant endpoints. */
 public record MerchantResponse(
         Long id,
         String name,

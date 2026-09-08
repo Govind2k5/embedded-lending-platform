@@ -22,9 +22,19 @@ import java.util.List;
 public class RepaymentService {
 
     private final RepaymentRepository repaymentRepository;
+    // Note: this service reaches directly into LoanRepository (not
+    // LoanService) to read/update the Loan during a repayment - repayment
+    // and loan are tightly coupled around the same aggregate (the loan's
+    // outstanding balance), so it's simpler to update it in the same
+    // transaction here than to round-trip through another service.
     private final LoanRepository loanRepository;
     private final EmiCalculatorService emiCalculatorService;
 
+    /**
+     * Builds and persists the full installment schedule for a brand-new
+     * loan. Called once, from LoanService.createLoanFromOffer(), inside the
+     * same transaction that created the Loan row.
+     */
     public List<Repayment> generateSchedule(Loan loan) {
         List<AmortizationEntry> schedule = emiCalculatorService.generateSchedule(
                 loan.getPrincipalAmount(), loan.getInterestRate(), loan.getTenureMonths(), loan.getStartDate());
@@ -45,6 +55,7 @@ public class RepaymentService {
         return repaymentRepository.saveAll(repayments);
     }
 
+    /** Read-only: the full schedule for GET /loans/{id}/repayments, in installment order. */
     public List<Repayment> getScheduleForLoan(Long loanId) {
         return repaymentRepository.findByLoanIdOrderByInstallmentNumberAsc(loanId);
     }
@@ -67,9 +78,12 @@ public class RepaymentService {
         }
 
         BigDecimal remainingDue = repayment.getTotalAmount().subtract(repayment.getPaidAmount());
+        // No amount in the request body means "pay whatever's still due, in full".
         BigDecimal amountToApply = requestedAmount != null ? requestedAmount : remainingDue;
 
         if (amountToApply.compareTo(remainingDue) > 0) {
+            // Reject overpayment outright rather than silently capping it or
+            // crediting the excess elsewhere - keeps the payment model simple.
             throw new InvalidStateException("Payment amount exceeds the remaining due amount of " + remainingDue);
         }
 
@@ -81,11 +95,17 @@ public class RepaymentService {
         }
         repaymentRepository.save(repayment);
 
+        // Second write in the same transaction: pull the same amount off
+        // the loan's running balance. If another repayment on this same
+        // loan committed between when we started this method and this
+        // save(), Loan.version's optimistic check makes THIS save fail with
+        // ObjectOptimisticLockingFailureException (-> 409 CONCURRENT_UPDATE)
+        // instead of silently overwriting the other update.
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Loan not found: " + loanId));
         loan.setOutstandingAmount(loan.getOutstandingAmount().subtract(amountToApply));
         if (loan.getOutstandingAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            loan.setOutstandingAmount(BigDecimal.ZERO);
+            loan.setOutstandingAmount(BigDecimal.ZERO); // guards against a tiny negative balance from rounding
             loan.setStatus(LoanStatus.COMPLETED);
         }
         loanRepository.save(loan);

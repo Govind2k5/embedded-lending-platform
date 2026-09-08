@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/** REST layer for merchant/embedding-app registration. Same thin Controller -> Service pattern as everywhere else. */
 @RestController
 @RequestMapping("/api/v1/merchants")
 @RequiredArgsConstructor
